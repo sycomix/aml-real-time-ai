@@ -33,10 +33,10 @@ class DeploymentClient:
                 service_principal_params.service_principal_id, 
                 service_principal_params.service_principal_key)
         else:
-            self.__get_access_token = self.__acquire_access_token     
+            self.__get_access_token = self.__acquire_access_token
         self.__uri, self.__location = self.__discover_mms_endpoint(subscription_id, resource_group, account)
         self.__http_client = self._create_http_client(self.__uri)
-        id = subscription_id + '_' + resource_group + '_' + account + '_' + self.__location
+        id = f'{subscription_id}_{resource_group}_{account}_{self.__location}'
         self.__storage_account_name = ('fpga' + hashlib.md5(id.encode("utf-8")).hexdigest())[:24]
         self.__api_version = "2018-04-01-preview"
 
@@ -47,10 +47,10 @@ class DeploymentClient:
         storage_account_key = self.__create_storage_account_and_get_key()
         cloud_storage_account = CloudStorageAccount(self.__storage_account_name, storage_account_key)
 
-        print("Registering model " + model_name)
+        print(f"Registering model {model_name}")
         url = self.__upload_model(model_name, service_def, cloud_storage_account)
         register_model_result = self.register_model_with_mms(model_name, url)
-        print("Successfully registered model " + model_name)
+        print(f"Successfully registered model {model_name}")
         return register_model_result['id']
 
     def create_service(self, service_name, model_id, ssl_enabled = False, ssl_certificate = None, ssl_key = None,
@@ -68,14 +68,14 @@ class DeploymentClient:
         generate one for you.
         :return: The created service.
         """
-        print("Creating service " + service_name)
+        print(f"Creating service {service_name}")
 
         # only single node deployments supported for now
         scale_units = 1
 
         service = self.__deploy_service(service_name, model_id, scale_units, ssl_enabled, ssl_certificate , ssl_key,
                                         primary_key, secondary_key)
-        print("Successfully created service " + service_name)
+        print(f"Successfully created service {service_name}")
         return service
 
     def update_service(self, service_id, model_id, ssl_enabled = None, ssl_certificate = None, ssl_key = None,
@@ -151,17 +151,16 @@ class DeploymentClient:
 
     def __list_items(self, operation, factory_fn):
         response_body = self.__http_client.get(self.__get_operation_uri(operation)).json()
-        while(True):
+        while True:
             for x in response_body['value']:
                 yield factory_fn(x)
-            if('nextLink' in response_body):
-                url = response_body['nextLink']
-                if(not url.startswith(self.__http_client.host)):
-                    raise RuntimeError(url + " invalid for pagination")
-                res = url[len(self.__http_client.host):]
-                response_body = self.__http_client.get(res).json()
-            else:
+            if 'nextLink' not in response_body:
                 break
+            url = response_body['nextLink']
+            if (not url.startswith(self.__http_client.host)):
+                raise RuntimeError(f"{url} invalid for pagination")
+            res = url[len(self.__http_client.host):]
+            response_body = self.__http_client.get(res).json()
 
 
     def get_service_by_id(self, service_id):
@@ -172,10 +171,7 @@ class DeploymentClient:
     def get_service_by_name(self, service_name):
         get_services_by_name_response = self.__http_client.get(self.__get_operation_uri('services', query_parameters={'serviceName': service_name}))
         services = [Service(**x) for x in get_services_by_name_response.json()['value']]
-        if(any(services)):
-            return self.get_service_by_id(services[0].id)
-        else:
-            return None
+        return self.get_service_by_id(services[0].id) if (any(services)) else None
 
 
     def get_services_by_name(self, service_name):
@@ -198,32 +194,29 @@ class DeploymentClient:
         return response.json()
 
     def regenerate_auth_keys(self, service_id, key_type:str=None):
-        if key_type is not None:
-            body = {"keyType": key_type}
-        else:
-            body = None
+        body = {"keyType": key_type} if key_type is not None else None
         response = self.__http_client.post(self.__get_operation_uri('services', "{0}/regenerateKeys".format(service_id)), json=body)
         return response.json()
 
     def __get_operation_uri(self, operation, resource_id = None, query_parameters = None):
-        resource = operation if resource_id == None else operation + '/' + resource_id
+        resource = operation if resource_id is None else f'{operation}/{resource_id}'
 
         query = ''
-        if(query_parameters != None):
+        if (query_parameters != None):
             for k, v in query_parameters.items():
-                query += '&' + k + '=' + v
+                query += f'&{k}={v}'
 
-        return '/api/subscriptions/' + self.__subscription_id + '/resourcegroups/' + self.__resource_group + '/accounts/' + self.__account + '/' + resource + '?api-version=' + self.__api_version + query
+        return f'/api/subscriptions/{self.__subscription_id}/resourcegroups/{self.__resource_group}/accounts/{self.__account}/{resource}?api-version={self.__api_version}{query}'
 
     def __upload_model(self, model_name, service_def, storage_account: CloudStorageAccount):
         if not os.path.isfile(service_def):
-            raise FileNotFoundError(service_def + ' not found')
+            raise FileNotFoundError(f'{service_def} not found')
 
         storage_service = storage_account.create_block_blob_service()
         container_name = "models"
         storage_service.create_container(container_name)
         hash = self.__md5(service_def)
-        blob_name = urllib.parse.quote(model_name) + "_" + hash
+        blob_name = f"{urllib.parse.quote(model_name)}_{hash}"
         storage_service.create_blob_from_path(container_name, blob_name, service_def)
         sas_token = storage_service.generate_blob_shared_access_signature(container_name, blob_name, BlobPermissions.READ, datetime.utcnow() + timedelta(days=365 * 5))
         return storage_service.make_blob_url(container_name, blob_name, sas_token=sas_token)
@@ -247,7 +240,9 @@ class DeploymentClient:
 
     def __wait_for_async_operation(self, operation_friendly_name, original_request_id, operation_location):
         while True:
-            operation_status_response = self.__http_client.get(operation_location + "?api-version=" + self.__api_version).json()
+            operation_status_response = self.__http_client.get(
+                f"{operation_location}?api-version={self.__api_version}"
+            ).json()
             if operation_status_response['state'] == 'Succeeded':
                 print("")
                 return operation_status_response['resourceLocation'] + "?api-version=" + self.__api_version
@@ -270,7 +265,7 @@ class DeploymentClient:
         client = StorageManagementClient(basic_token_auth, self.__subscription_id)
 
         storage_accounts = list(client.storage_accounts.list_by_resource_group(self.__resource_group))
-        if(not any([x.name == self.__storage_account_name for x in storage_accounts])):
+        if all(x.name != self.__storage_account_name for x in storage_accounts):
             print("Creating storage account", self.__storage_account_name)
             client.storage_accounts.create(
                 self.__resource_group,
@@ -354,13 +349,13 @@ class DeploymentClient:
         }
 
         auth = AADAuthentication(options, lambda m: print(m), store_refresh_token, load_refresh_token)
-        token = auth.acquire_token()
-
-        return token
+        return auth.acquire_token()
 
     def __discover_mms_endpoint(self, subscription_id, resource_group, account):
         http_client = self._create_http_client(_mgmnt_uri)
-        endpoint_lookup_response = http_client.get('/subscriptions/' + subscription_id + '/resourcegroups/' + resource_group + '/providers/Microsoft.MachineLearningModelManagement/accounts/' + account + '?api-version=2017-09-01-preview').json()
+        endpoint_lookup_response = http_client.get(
+            f'/subscriptions/{subscription_id}/resourcegroups/{resource_group}/providers/Microsoft.MachineLearningModelManagement/accounts/{account}?api-version=2017-09-01-preview'
+        ).json()
         mms_location = endpoint_lookup_response['properties']['modelManagementSwaggerLocation']
         end_pos = mms_location.index('/', len('https://'))
         return mms_location[:end_pos], endpoint_lookup_response['location']
@@ -400,7 +395,7 @@ class AsyncOperationFailedException(Exception):
         self.__resource_location = resource_location
 
     def __str__(self):
-        return "{} failed with error {} ({}); Original request id: {}; {}; operation_id: {}; resource_location: {}".format(self.__friendly_operation_name, self.__error_message, self.__error_details, self.__request_id, self.__operation_type, self.__operation_id, self.__resource_location)
+        return f"{self.__friendly_operation_name} failed with error {self.__error_message} ({self.__error_details}); Original request id: {self.__request_id}; {self.__operation_type}; operation_id: {self.__operation_id}; resource_location: {self.__resource_location}"
         
 
 # Keep copy of refresh token in global memory for the entire process
@@ -423,6 +418,4 @@ def service_principal_token_fn(tenant, sp_id, sp_key):
         "resource": "https://management.core.windows.net/"
     })
     auth = AADAuthentication (opts, print)
-    token = auth.acquire_token()
-
-    return token
+    return auth.acquire_token()

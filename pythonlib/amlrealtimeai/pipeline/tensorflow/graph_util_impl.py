@@ -82,7 +82,7 @@ def must_run_on_cpu(node, pin_variables_on_cpu=False):
   if node_def.op == "Const":
     # Get the value of the 'dtype' attr
     dtype = node_def.attr["dtype"].type
-    if dtype == dtypes.string or dtype == dtypes.int32:
+    if dtype in [dtypes.string, dtypes.int32]:
       return True
 
   if node_def.op in ["DynamicStitch", "ParallelDynamicStitch"]:
@@ -107,10 +107,7 @@ def must_run_on_cpu(node, pin_variables_on_cpu=False):
 
 
 def _node_name(n):
-  if n.startswith("^"):
-    return n[1:]
-  else:
-    return n.split(":")[0]
+  return n[1:] if n.startswith("^") else n.split(":")[0]
 
 
 def _extract_graph_summary(graph_def):
@@ -121,20 +118,18 @@ def _extract_graph_summary(graph_def):
   # Keeps track of node sequences. It is important to still output the
   # operations in the original order.
   name_to_seq_num = {}  # Keyed by node name.
-  seq = 0
-  for node in graph_def.node:
+  for seq, node in enumerate(graph_def.node):
     n = _node_name(node.name)
     name_to_node[n] = node
     name_to_input_name[n] = [_node_name(x) for x in node.input]
     name_to_seq_num[n] = seq
-    seq += 1
   return name_to_input_name, name_to_node, name_to_seq_num
 
 
 def _assert_nodes_are_present(name_to_node, nodes):
   """Assert that nodes are present in the graph."""
   for d in nodes:
-    assert d in name_to_node, "%s is not in graph" % d
+    assert d in name_to_node, f"{d} is not in graph"
 
 
 def _bfs_for_reachable_nodes(source_nodes, target_nodes, name_to_input_name, name_to_node):
@@ -207,13 +202,9 @@ def tensor_shape_from_node_def_name(graph, input_name):
   # To get a tensor, the name must be in the form <input>:<port>, for example
   # 'Mul:0'. The GraphDef input strings don't always have the port specified
   # though, so if there isn't a colon we need to add a default ':0' to the end.
-  if ":" not in input_name:
-    canonical_name = input_name + ":0"
-  else:
-    canonical_name = input_name
+  canonical_name = f"{input_name}:0" if ":" not in input_name else input_name
   tensor = graph.get_tensor_by_name(canonical_name)
-  shape = tensor.get_shape()
-  return shape
+  return tensor.get_shape()
 
 
 @tf_export("graph_util.convert_variables_to_constants")
@@ -259,13 +250,10 @@ def convert_variables_to_constants(sess,
         continue
       variable_dict_names.append(variable_name)
       if node.op == "VarHandleOp":
-        variable_names.append(variable_name + "/Read/ReadVariableOp:0")
+        variable_names.append(f"{variable_name}/Read/ReadVariableOp:0")
       else:
-        variable_names.append(variable_name + ":0")
-  if variable_names:
-    returned_variables = sess.run(variable_names)
-  else:
-    returned_variables = []
+        variable_names.append(f"{variable_name}:0")
+  returned_variables = sess.run(variable_names) if variable_names else []
   found_variables = dict(zip(variable_dict_names, returned_variables))
   logging.info("Froze %d variables.", len(returned_variables))
 
@@ -330,11 +318,11 @@ def remove_training_nodes(input_graph, protected_nodes=None):
   types_to_remove = {"CheckNumerics": True}
 
   input_nodes = input_graph.node
-  names_to_remove = {}
-  for node in input_nodes:
-    if node.op in types_to_remove and node.name not in protected_nodes:
-      names_to_remove[node.name] = True
-
+  names_to_remove = {
+      node.name: True
+      for node in input_nodes
+      if node.op in types_to_remove and node.name not in protected_nodes
+  }
   nodes_after_removal = []
   for node in input_nodes:
     if node.name in names_to_remove:

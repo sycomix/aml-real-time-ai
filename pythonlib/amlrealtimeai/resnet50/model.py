@@ -27,7 +27,7 @@ class QuantizedResNet50:
         self.classifier_input = None
         self.classifier_output = None
         self.download(model_base_path)
-        self._graph_prefix = 'rn_' + str(uuid.uuid4())[:5]
+        self._graph_prefix = f'rn_{str(uuid.uuid4())[:5]}'
 
     def download(self, model_base_path):
         model_dir = os.path.join(model_base_path, self.model_name, self.version)
@@ -55,9 +55,11 @@ class QuantizedResNet50:
 
         input_tensor_name = "Input:0"
 
-        if not input_map is None:
+        if input_map is not None:
             in_tensor = input_map['Input']
-            wrap_in_tensor = tf.identity(in_tensor, name=self._graph_prefix + '/classifier_input')
+            wrap_in_tensor = tf.identity(
+                in_tensor, name=f'{self._graph_prefix}/classifier_input'
+            )
             input_map = {'Input': wrap_in_tensor}
             input_tensor_name = 'classifier_input:0'      
 
@@ -66,14 +68,15 @@ class QuantizedResNet50:
             data = f.read()
             input_graph_def.ParseFromString(data)
         tf.import_graph_def(input_graph_def, name=self._graph_prefix, input_map=input_map)
-        return tf.get_default_graph().get_tensor_by_name(self._graph_prefix + '/' + input_tensor_name), tf.get_default_graph().get_tensor_by_name(self._graph_prefix + "/resnet_v1_50/logits/Softmax:0")
+        return tf.get_default_graph().get_tensor_by_name(
+            f'{self._graph_prefix}/{input_tensor_name}'
+        ), tf.get_default_graph().get_tensor_by_name(
+            f"{self._graph_prefix}/resnet_v1_50/logits/Softmax:0"
+        )
 
 
     def import_graph_def(self, include_featurizer=True, include_top=True, input_tensor=None):
-        input_map = None
-        if input_tensor is not None:
-            input_map = {'InputImage': input_tensor}
-        
+        input_map = {'InputImage': input_tensor} if input_tensor is not None else None
         if include_featurizer:
             self.featurizer_input, self.featurizer_output = self._import_featurizer_graph_def(input_map)
 
@@ -93,13 +96,20 @@ class RemoteQuantizedResNet50(QuantizedResNet50):
     def __init__(self, subscription_id, resource_group, model_management_account, model_base_path, remote_service_name = None, **kwargs):
         super().__init__(model_base_path)
         self.__deployment_client = DeploymentClient(subscription_id, resource_group, model_management_account, **kwargs)
-        self.__service_name = remote_service_name if remote_service_name is not None else "featurizer-service-" + hashlib.md5((self.model_name + "-" + self.version).encode("utf-8")).hexdigest()[:6]
+        self.__service_name = (
+            remote_service_name
+            if remote_service_name is not None
+            else "featurizer-service-"
+            + hashlib.md5(
+                f"{self.model_name}-{self.version}".encode("utf-8")
+            ).hexdigest()[:6]
+        )
 
     
     def _import_featurizer_graph_def(self, input_map):
         service = self.__deployment_client.get_service_by_name(self.__service_name)
-        if(service is None):
-            model_name = self.model_name + "-" + self.version + "-model"
+        if (service is None):
+            model_name = f"{self.model_name}-{self.version}-model"
             temp_dir = tempfile.mkdtemp()
             model_path = os.path.join(temp_dir, "model")
             service_def = ServiceDefinition()

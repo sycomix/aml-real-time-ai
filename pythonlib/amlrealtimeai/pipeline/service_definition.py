@@ -25,4 +25,4 @@ class ServiceDefinition(object):
             with open(os.path.join(tmpdir,'service_def.json'),'w') as f:
                 json.dump(self,f,cls=StageEncoder,sort_keys=True)
             shutil.make_archive(service_def_path, format='zip', root_dir=tmpdir)
-            shutil.move(service_def_path+".zip",service_def_path)
+            shutil.move(f"{service_def_path}.zip", service_def_path)

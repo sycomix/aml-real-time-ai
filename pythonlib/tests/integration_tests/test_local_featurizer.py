@@ -11,9 +11,8 @@ from amlrealtimeai.resnet50.utils import preprocess_array
 def read_file():
     file_name = "/tmp/share1/shark.jpg"
     if os.path.isfile(file_name):
-        file = open(file_name, "rb")
-        data = file.read()
-        file.close()
+        with open(file_name, "rb") as file:
+            data = file.read()
         return data
     return None
     

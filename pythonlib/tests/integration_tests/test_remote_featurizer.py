@@ -18,9 +18,8 @@ from amlrealtimeai.client import PredictionClient
 def read_file():
     file_name = "/tmp/share1/shark.jpg"
     if os.path.isfile(file_name):
-        file = open(file_name, "rb")
-        data = file.read()
-        file.close()
+        with open(file_name, "rb") as file:
+            data = file.read()
         return data
     return None
     
@@ -30,7 +29,7 @@ def test_remote_featurizer_local_usage():
     in_images = tf.placeholder(tf.string)
     image_tensors = preprocess_array(in_images)
 
-    remote_service_name = ("int-test-featurizer-svc-" + str(uuid.uuid4()))[:30]
+    remote_service_name = f"int-test-featurizer-svc-{str(uuid.uuid4())}"[:30]
     featurizer = RemoteQuantizedResNet50(test_config['test_subscription_id'], test_config['test_resource_group'],
                                          test_config['test_model_management_account'], os.path.expanduser("~/models"),
                                          remote_service_name, service_principal_params = get_service_principal())
@@ -38,25 +37,25 @@ def test_remote_featurizer_local_usage():
 
     try:
         with tf.Session() as sess:
-           result = sess.run([featurizer.featurizer_output], feed_dict={in_images: [read_file()]})
-           np_result = np.array(result[0])
-           assert all([x == y for x, y in zip(np_result.shape, [1, 1, 1, 2048])])
-           assert np_result.dtype == np.dtype('float32')
+            result = sess.run([featurizer.featurizer_output], feed_dict={in_images: [read_file()]})
+            np_result = np.array(result[0])
+            assert all(x == y for x, y in zip(np_result.shape, [1, 1, 1, 2048]))
+            assert np_result.dtype == np.dtype('float32')
 
-           result = sess.run([featurizer.featurizer_output], feed_dict={in_images: [read_file(), read_file()]})
-           np_result = np.array(result[0])
-           assert all([x == y for x, y in zip(np_result.shape, [2, 1, 1, 2048])])
-           assert np_result.dtype == np.dtype('float32')
+            result = sess.run([featurizer.featurizer_output], feed_dict={in_images: [read_file(), read_file()]})
+            np_result = np.array(result[0])
+            assert all(x == y for x, y in zip(np_result.shape, [2, 1, 1, 2048]))
+            assert np_result.dtype == np.dtype('float32')
 
-           result = sess.run([featurizer.classifier_output], feed_dict={in_images: [read_file()]})
-           np_result = np.array(result[0])
-           assert all([x == y for x, y in zip(np_result.shape, [1, 1000])])
-           assert np_result.dtype == np.dtype('float32')
+            result = sess.run([featurizer.classifier_output], feed_dict={in_images: [read_file()]})
+            np_result = np.array(result[0])
+            assert all(x == y for x, y in zip(np_result.shape, [1, 1000]))
+            assert np_result.dtype == np.dtype('float32')
 
-           result = sess.run([featurizer.classifier_output], feed_dict={in_images: [read_file(), read_file()]})
-           np_result = np.array(result[0])
-           assert all([x == y for x, y in zip(np_result.shape, [2, 1000])])
-           assert np_result.dtype == np.dtype('float32')
+            result = sess.run([featurizer.classifier_output], feed_dict={in_images: [read_file(), read_file()]})
+            np_result = np.array(result[0])
+            assert all(x == y for x, y in zip(np_result.shape, [2, 1000]))
+            assert np_result.dtype == np.dtype('float32')
     finally:
         featurizer.cleanup_remote_service()
 
@@ -69,16 +68,16 @@ def test_remote_featurizer_create_package_and_service():
                                          service_principal_params = get_service_principal())
 
     id = uuid.uuid4().hex[:5]
-    model_name = "int-test-rf-model-" + id
-    service_name = "int-test-rf-service-" + id
+    model_name = f"int-test-rf-model-{id}"
+    service_name = f"int-test-rf-service-{id}"
 
     service_def_path = "/tmp/modelrf"
 
     in_images = tf.placeholder(tf.string)
     image_tensors = preprocess_array(in_images)
 
-    remote_service_name = ("int-test-featurizer-svc-" + str(uuid.uuid4()))[:30]
-    
+    remote_service_name = f"int-test-featurizer-svc-{str(uuid.uuid4())}"[:30]
+
     model = RemoteQuantizedResNet50(test_config['test_subscription_id'], test_config['test_resource_group'], test_config['test_model_management_account'], os.path.expanduser("~/models"), remote_service_name, service_principal_params = get_service_principal())
     model.import_graph_def(include_featurizer=True, input_tensor=image_tensors)
 

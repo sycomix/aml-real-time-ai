@@ -22,8 +22,8 @@ def test_create_update_and_delete_service():
     cleanup_old_test_services(deployment_client)
 
     id = uuid.uuid4().hex[:5]
-    model_name = "int-test-model-" + id
-    service_name = "int-test-service-" + id
+    model_name = f"int-test-model-{id}"
+    service_name = f"int-test-service-{id}"
 
     service_def_path = "/tmp/model"
 
@@ -61,13 +61,13 @@ def test_create_update_and_delete_service():
     deployment_client.update_service(service.id, second_model_id)
 
     result = prediction_client.score_image("/tmp/share1/shark.jpg")
-    assert all([x == y for x, y in zip(np.array(result).shape, [1, 1, 2048])])
+    assert all(x == y for x, y in zip(np.array(result).shape, [1, 1, 2048]))
 
     # wait for timeout of Azure LB
     time.sleep(4 * 60 + 10)
 
     result = prediction_client.score_image("/tmp/share1/shark.jpg")
-    assert all([x == y for x, y in zip(np.array(result).shape, [1, 1, 2048])])
+    assert all(x == y for x, y in zip(np.array(result).shape, [1, 1, 2048]))
 
     deployment_client.delete_service(service.id)
     deployment_client.delete_model(first_model_id)

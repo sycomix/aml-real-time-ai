@@ -28,7 +28,7 @@ class AADAuthentication(object):
         resource = opts['resource']
         clientid = opts['clientid']
 
-        ctx = adal.AuthenticationContext(authuri + '/' + tenant, api_version=None)
+        ctx = adal.AuthenticationContext(f'{authuri}/{tenant}', api_version=None)
 
         try:
             if self.__load_refresh_token_fn is not None:
@@ -81,10 +81,10 @@ class AADAuthentication(object):
 
         if 'accessToken' not in token:
             msg = 'Failed to acquire an access token with:\n' \
-                  '   authuri: {authuri}\n' \
-                  '    tenant: {tenant}\n' \
-                  '  clientid: {clientid}\n' \
-                  '  resource: {resource}'.format(opts)
+                      '   authuri: {authuri}\n' \
+                      '    tenant: {tenant}\n' \
+                      '  clientid: {clientid}\n' \
+                      '  resource: {resource}'.format(opts)
             raise ValueError(msg)
 
         if self.__store_refresh_token_fn is not None:
@@ -93,11 +93,9 @@ class AADAuthentication(object):
         return token['accessToken']
 
     def _raise_errors(self, required=[]):
-        missing = []
-
-        for key in required:
-            if key not in self.options:
-                missing.append('A valid `{0}` is required.'.format(key))
-
-        if len(missing) > 0:
+        if missing := [
+            'A valid `{0}` is required.'.format(key)
+            for key in required
+            if key not in self.options
+        ]:
             raise ValueError('\n'.join(missing))

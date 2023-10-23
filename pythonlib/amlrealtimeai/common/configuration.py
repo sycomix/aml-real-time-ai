@@ -45,8 +45,7 @@ class Configuration(object):
         self.access_token = None
 
         # --- Logging Settings ---
-        self.logger = {}        
-        self.logger['package_logger'] = logging.getLogger('azure')
+        self.logger = {'package_logger': logging.getLogger('azure')}
         self.logger['urllib3_logger'] = logging.getLogger('urllib3')
         # Log format
         self.logger_format = '%(asctime)s %(levelname)s %(message)s'
@@ -58,7 +57,7 @@ class Configuration(object):
         self.logger_file = None
         # Debug switch
         self.debug = False
-        
+
         # --- SSL/TLS verification ---
         # Set this to false to skip verifying SSL certificate when calling API
         # from https server.
@@ -72,7 +71,7 @@ class Configuration(object):
         # verify_ssl = False
         # verify_ssl = '/etc/ssl/certs/ca-certificates.crt'
         self.verify_ssl = True
-                         
+
         # Set this to customize the certificate file to verify the peer.
         # SSL client certificate default, if String, path to ssl client cert 
         # file (.pem). If Tuple ('client certificate file, 'client key') pair.

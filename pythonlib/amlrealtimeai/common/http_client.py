@@ -33,7 +33,7 @@ class HttpClient(object):
         Constructor of the class.
         """        
         self._session = requests.Session()
-        
+
         # --- Host base url ---
         self.host = host
         if self.host and self.host.endswith('/'):
@@ -41,33 +41,30 @@ class HttpClient(object):
 
         # --- Default headers ---
         self.headers = {}
-        
+
         # --- Set common defaults: User-Agent, Content-Type, Accept ---
-        if not access_token_fn is None:
+        if access_token_fn is not None:
             self.authorization = access_token_fn()
             self.access_token_fn = access_token_fn    
 
         self.content_type = 'application/json' #; charset=utf-8'
-        self.accept = 'application/json'        
+        self.accept = 'application/json'
         # self.user_agent = '{title}/{version}/python'.format(
         #     title=__title__, version=__version__)
 
         # --- SSL ---
-        
+
         # verify -- (optional) Either a boolean, in which case it controls 
         # whether we verify the server's TLS certificate, or a string, in which 
         # case it must be a path to a CA bundle to use
-        if not Configuration().verify_ssl:
-            verify = False
-        else:  # default is `True`
-            verify = Configuration().verify_ssl  # True|'/path/to/certfile'
+        verify = Configuration().verify_ssl if Configuration().verify_ssl else False
         self._session.verify = verify
 
         # SSL client certificate default, if String, path to ssl client cert 
         # file (.pem). If Tuple, ('cert', 'key') pair.
         if Configuration().cert:
             self._session.cert = Configuration().cert
-        
+
         # Proxies: Dictionary mapping protocol or protocol and hostname to the 
         # URL of the proxy.        
         if Configuration().proxies:
@@ -87,11 +84,7 @@ class HttpClient(object):
         """
         prefix = Configuration().api_key_prefix
 
-        if prefix is None:
-            prefix = ''            
-        else:
-            prefix = prefix + ' '            
-        
+        prefix = '' if prefix is None else f'{prefix} '
         self.token = value
         self.headers['Authorization'] = prefix + value        
 
@@ -227,7 +220,7 @@ class HttpClient(object):
 
             elif method == 'POST':
                 response = self._session.post(url, data, json, headers=h, **kwargs)
-            
+
             elif method == 'PUT':
                 response = self._session.put(url, data=jsonFuncs.dumps(json), headers=h, **kwargs)
 
@@ -250,7 +243,7 @@ class HttpClient(object):
             log.debug(response.content if response is not None else '<NO-RESPONSE>')
             log.debug('-----------------------------------------------------------')
 
-            if response.status_code == 500 or response.status_code == 408:
+            if response.status_code in [500, 408]:
                 retry_count = retry_count - 1
                 if retry_count > 0:
                     time.sleep(sleep_delay)
@@ -259,9 +252,11 @@ class HttpClient(object):
 
             if response.status_code == 403:
                 decoded_token = dict(jwt.decode(self.token, verify=False))
-                raise RuntimeError("Request {} forbidden for user {}; token issuer: {}".format(url, decoded_token['unique_name'], decoded_token['iss']))
+                raise RuntimeError(
+                    f"Request {url} forbidden for user {decoded_token['unique_name']}; token issuer: {decoded_token['iss']}"
+                )
 
-            if response.status_code == 401 and not self.access_token_fn is None:
+            if response.status_code == 401 and self.access_token_fn is not None:
                 if 'error' in response.json() and 'code' in response.json()['error'] and response.json()['error']['code'] == 'InvalidAuthenticationTokenTenant':
                     if not tenant_overridden:
                         tenant_overridden = True
@@ -282,24 +277,20 @@ class HttpClient(object):
             except (RequestException, ConnectionError, HTTPError) as e:
                 log.error(e)
                 raise HttpException(resp=response)
-            
-            if not raw_response and self.accept == 'application/json':
-                #response = response.json()
-                pass
 
             return response
 
     @staticmethod
     def _parse_auth_header(header_value):
         parsed_values = dict(map(lambda x: x.split('='), header_value.split(', ')))
-        if('Bearer authorization_uri' in parsed_values):
+        if ('Bearer authorization_uri' in parsed_values):
             uri = parsed_values['Bearer authorization_uri']
             if uri[0] == '"' and uri[len(uri)-1] == '"':
-                uri = uri[1:len(uri)-1]
+                uri = uri[1:-1]
             sep = uri.rfind("/", len("https://"))
             if sep > 0:
                 return uri[:sep], uri[sep+1:]
-        
+
         return None, None
 
 

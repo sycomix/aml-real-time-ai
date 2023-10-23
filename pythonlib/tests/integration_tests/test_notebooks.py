@@ -33,12 +33,14 @@ def replace_auth_values(str):
     service_principal = get_service_principal()
 
     str = str.replace(
-        'deployment_client = DeploymentClient(subscription_id, resource_group, model_management_account)', 
-        'from collections import namedtuple\\nAad_Record = namedtuple(\\"AadRecord\\", [\\"tenant\\",\\"service_principal_id\\",\\"service_principal_key\\"])\\nservice_principal=Aad_Record(\\"{}\\", \\"{}\\", \\"{}\\")\\ndeployment_client = DeploymentClient(\\"{}\\", \\"{}\\", \\"{}\\", service_principal)'.format(service_principal.tenant, service_principal.service_principal_id, service_principal.service_principal_key, test_config['test_subscription_id'], test_config['test_resource_group'], test_config['test_model_management_account']))
+        'deployment_client = DeploymentClient(subscription_id, resource_group, model_management_account)',
+        f"""from collections import namedtuple\\nAad_Record = namedtuple(\\"AadRecord\\", [\\"tenant\\",\\"service_principal_id\\",\\"service_principal_key\\"])\\nservice_principal=Aad_Record(\\"{service_principal.tenant}\\", \\"{service_principal.service_principal_id}\\", \\"{service_principal.service_principal_key}\\")\\ndeployment_client = DeploymentClient(\\"{test_config['test_subscription_id']}\\", \\"{test_config['test_resource_group']}\\", \\"{test_config['test_model_management_account']}\\", service_principal)""",
+    )
 
     str = str.replace(
-        'featurizer = RemoteQuantizedResNet50(subscription_id, resource_group, model_management_account, model_path)', 
-        'import uuid\\nfrom collections import namedtuple\\nAad_Record = namedtuple(\\"AadRecord\\", [\\"tenant\\",\\"service_principal_id\\",\\"service_principal_key\\"])\\nservice_principal=Aad_Record(\\"{}\\", \\"{}\\", \\"{}\\")\\nremote_service_name = (\\"int-test-featurizer-svc-\\" + str(uuid.uuid4()))[:30]\\nfeaturizer = RemoteQuantizedResNet50(\\"{}\\", \\"{}\\", \\"{}\\", model_path, remote_service_name, service_principal_params=service_principal)'.format(service_principal.tenant, service_principal.service_principal_id, service_principal.service_principal_key, test_config['test_subscription_id'], test_config['test_resource_group'], test_config['test_model_management_account']))
+        'featurizer = RemoteQuantizedResNet50(subscription_id, resource_group, model_management_account, model_path)',
+        f"""import uuid\\nfrom collections import namedtuple\\nAad_Record = namedtuple(\\"AadRecord\\", [\\"tenant\\",\\"service_principal_id\\",\\"service_principal_key\\"])\\nservice_principal=Aad_Record(\\"{service_principal.tenant}\\", \\"{service_principal.service_principal_id}\\", \\"{service_principal.service_principal_key}\\")\\nremote_service_name = (\\"int-test-featurizer-svc-\\" + str(uuid.uuid4()))[:30]\\nfeaturizer = RemoteQuantizedResNet50(\\"{test_config['test_subscription_id']}\\", \\"{test_config['test_resource_group']}\\", \\"{test_config['test_model_management_account']}\\", model_path, remote_service_name, service_principal_params=service_principal)""",
+    )
 
     str = str.replace(
         'service_name = \"quickstart-master-service\"', 
